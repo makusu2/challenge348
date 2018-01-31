@@ -3,19 +3,8 @@ import math
 import itertools
 import time
 from collections import deque
+from queue import PriorityQueue
 
-def pairMeetsReqs(n1,n2):
-    def isWholeNum(n):
-        return n == int(n)
-    return isWholeNum(math.sqrt(n1+n2))
-def meetsReqs(vals):
-    vals = iter(vals)
-    prevVal = next(vals)
-    for val in vals:
-        if not pairMeetsReqs(prevVal,val):
-            return False
-        prevVal = val
-    return True
 def timeit(method):
     def timed(*args, **kw):
         ts = time.time()
@@ -33,35 +22,56 @@ class NoSolutionsException(BaseException):
 
 
 @timeit
-def getSolution(maxNum,searchType='bfs'):
+def getSolution(maxNum):
+    def pairMeetsReqs(n1,n2):
+        def isWholeNum(n):
+            return n == int(n)
+        return isWholeNum(math.sqrt(n1+n2))
+        
     def allowableNextRepetition(permList,nums):
         return (num for num in nums if num not in permList)
+    def getSquareList(maxNum):
+        maxSquare = int(math.sqrt(maxNum*2 - 1))
+        squares = tuple(n**2 for n in range(1,maxSquare+1))
+        return squares
+        
     def canBeNext(permList,nextVal):
         return pairMeetsReqs(permList[-1],nextVal)
     def allowableNextComplete(permList,nums):
         return (num for num in allowableNextRepetition(permList,nums) if canBeNext(permList,num))
     def asAppendedVal(permList,num):
-        return permList+[num]
-    def removeVal(collection,bfs):
-        return collection.popleft() if bfs else collection.pop()
+        return list(permList)+[num]
+    def removeVal(collection):
+        return collection.get()[1]
+    def addPerm(collection,newPerm,nums):
+        newPerm = list(newPerm)
+        allowableNexts = tuple(allowableNextComplete(newPerm,nums))
+        #print(len(allowableNexts))
+        priority = len(allowableNexts)
+        if priority != 0:
+            #print(priority)
+            collection.put((len(allowableNexts),(newPerm,allowableNexts)))
         
-    assert(searchType in ['bfs','dfs'])
-    bfs = searchType == 'bfs'
+    #currentPerms contains a tuple of: (actual perm, list possibleNexts)
+    squares = getSquareList(maxNum)
     nums = tuple(range(1,maxNum+1))
-    currentPerms = deque([list(perm) for perm in itertools.permutations(nums,2) if meetsReqs(perm)])
+    currentPerms = PriorityQueue()
+    for perm in itertools.permutations(nums,2):
+        if pairMeetsReqs(*perm):
+            addPerm(currentPerms,perm,nums)
     
-    while(currentPerms):
-        perm = removeVal(currentPerms,bfs)
-        for nextVal in allowableNextComplete(perm,nums):
-            addVal = asAppendedVal(perm,nextVal)
-            if len(addVal) == len(nums):
-                return addVal
+    while not currentPerms.empty():
+        perm,allowableNexts = removeVal(currentPerms)
+        for nextVal in allowableNexts:
+            permChild = asAppendedVal(perm,nextVal)
+            if len(permChild) == len(nums):
+                return permChild
             else:
-                currentPerms.append(addVal)
+                addPerm(currentPerms,permChild,nums)
     return None
 
 def testMax(maxNum):
-    sol = getSolution(maxNum,searchType='dfs')
+    sol = getSolution(maxNum)
     if sol is None:
         print(maxNum,' has no solution')
     else:
@@ -69,7 +79,7 @@ def testMax(maxNum):
 try:
     maxNum = int(sys.argv[1])
 except IndexError:
-    for i in range(2,50):
+    for i in range(3,50):
         testMax(i)
 else:
     testMax(maxNum)
